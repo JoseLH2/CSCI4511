@@ -88,3 +88,7 @@ To change any game settings within the simulation, use the below flags:
 
 To add a new bet-spread, add a new spread class within the `bet.py` file and extend the `BetSpreadInterface` class. New bet spreads must implement the following method:
 * `getBetSpreads()` - Returns the $ amount that the player should bet given the true count and the table minimum bet. 
+
+### Chart Sampling Appropiate Hit or Stand Values
+
+https://www.reddit.com/r/dankmemer/comments/mllo6s/ultimate_blackjack_strategy_chart/
