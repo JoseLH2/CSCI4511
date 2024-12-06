@@ -12,12 +12,24 @@ class GameData:
         self.getPlayerBankrollSnapshots()
     
     def getPlayerBankrollSnapshots(self):
-        numHands = self.game.numHands
         for player in self.players:
             self.bankrollData.update({player.name: player.bankrollSnapshots})
-    
-    def plotBankrollTime(self):
-        roundAxis = [item for item in range(1, numHands + 1)]
+    print("Tracked bankroll data for all players, including Monte Carlo Agent.")
 
-        plt.plot(roundAxis, self.bankrollData.get("Optimal"))
-    
+    def plotBankrollTime(self):
+        numHands = self.game.numHands
+        fig, ax = plt.subplots()
+        for player in self.players:
+            ax.plot(
+                range(1, len(player.bankrollSnapshots) + 1),
+                player.bankrollSnapshots,
+                label=player.name
+            )
+
+        ax.set_title(f"Players' Bankrolls Over {numHands} Rounds")
+        ax.set_xlabel("Round Number")
+        ax.set_ylabel("Bankroll ($)")
+        ax.legend(title="Players", loc="upper left")
+        plt.tight_layout()
+        plt.show()
+

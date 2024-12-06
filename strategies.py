@@ -2,10 +2,10 @@ from hand import Hand
 from enum import Enum, auto
 from dealer import HouseRules
 import random
-class GameActions(Enum):
-    HIT = 'H'
-    STAND = 'S'
-    DOUBLE = 'D'
+from monte_carlo import monte_carlo_tree_search
+from blackjack import BlackJackGame as BlackJack
+from game_actions import GameActions
+
 class StrategyInterface:
     def __init__(self, houseRules: HouseRules, isCounting):
         pass
@@ -16,11 +16,77 @@ class StrategyInterface:
     def shouldSplitPair(self, pairValue: int, dealerUpcard: int) -> bool:
         pass
 
-    def softTotalOptimalDecision(self, hand: Hand, dealerUpcard: int, softTotalDeductionCount:int) -> GameActions:
+    def softTotalOptimalDecision(self, hand: Hand, dealerUpcard: int, softTotalDeductionCount: int) -> GameActions:
         pass
     
     def willTakeInsurance(self, runningCount) -> None:
         pass
+
+class MonteCarloStrategy(StrategyInterface):
+    def __init__(self, houseRules: HouseRules, iterations=1000, isCounting=False):
+        self.houseRules = houseRules
+        self.iterations = iterations
+        self.isCounting = isCounting  # Add the isCounting attribute
+        self.name = "monte_carlo"
+    
+    def hardTotalOptimalDecision(self, hand: Hand, dealerUpcard: int, numSoftAces: int):
+        state = self._create_game_state(hand, dealerUpcard)
+        action = self._mcts_decision(state)
+        return action
+
+    def softTotalOptimalDecision(self, hand: Hand, dealerUpcard: int, softTotalDeductionCount: int) -> GameActions:
+        state = self._create_game_state(hand, dealerUpcard)
+        action = self._mcts_decision(state)
+        return action
+    
+    def shouldSplitPair(self, pairValue: int, dealerUpcard: int) -> bool:
+        state = self._create_game_state_for_split(pairValue, dealerUpcard)
+        action = self._mcts_decision(state)
+        return action == GameActions.HIT.value  # Map HIT to a split decision
+
+    def willTakeInsurance(self, runningCount):
+        return runningCount >= 8
+
+    def _create_game_state(self, hand, dealerUpcard):
+        return {
+            'player_hand': hand.getHandValue(),
+            'dealer_card': dealerUpcard,
+            'player_cards': hand.cards,  # Include the list of player cards
+            'legal_actions': [GameActions.HIT.value, GameActions.STAND.value, GameActions.DOUBLE.value],
+            'bet': hand.getInitialBet(),  # Add the initial bet value
+        }
+
+
+
+    def _create_game_state_for_split(self, pairValue, dealerUpcard):
+        return {
+            'player_hand': pairValue * 2,
+            'dealer_card': dealerUpcard,
+            'legal_actions': [GameActions.HIT.value, GameActions.STAND.value]
+        }
+
+    def _mcts_decision(self, state):
+        # Extract required parameters from state or pass hardcoded/test values
+        bankroll = 10000  # Default or derived value
+        hands = 1000      # Default or derived value
+        tableMin = 10     # Default or derived value
+        penetration = 0.84  # Default or derived value
+        houseRules = self.houseRules  # Already available in the strategy class
+
+        # Construct the game
+        game = BlackJack(
+            shoeSize=state.get('shoeSize', 6),  # Default shoe size if not in state
+            bankroll=bankroll,
+            hands=hands,
+            tableMin=tableMin,
+            penetration=penetration,
+            houseRules=houseRules
+        )
+
+        # Perform Monte Carlo search
+        return monte_carlo_tree_search(state, game, self.iterations)
+
+# Other classes (e.g., BasicStrategy, CasinoStrategy, RandomStrategy) remain unchanged.
 
 # RandomStrategy represents the strategy of a player who will leave every single game decision up to chance.
 # This goes without saying, do not attempt this strategy in a real life casino :)

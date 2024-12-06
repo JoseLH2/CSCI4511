@@ -5,25 +5,27 @@ from count import HiLoCount
 from hand import Hand
 from card import Card, CardValue
 from dealer import Dealer, HouseRules
-from strategies import BasicStrategy, CasinoStrategy, RandomStrategy, GameActions
 from bet import spread1_50, spread1_6
 from typing import List
 from collections import deque
 import matplotlib.pyplot as plt
 import numpy as np
+from enum import Enum
+from game_actions import GameActions
 
 isVerbose = False
-vprint = print if isVerbose else lambda *a, **k,: None
+vprint = print if isVerbose else lambda *a, **k: None
 
 @click.command()
 @click.option('-s', '--shoesize', default=6, help='An integer representing the amount of decks to use in the shoe. Default is 6 decks.')
-@click.option('-b', '--bankroll', default=10000, help='Determines the amount of dollars that each player begins the game with in their bankroll. Default is $1000.')
+@click.option('-b', '--bankroll', default=10000, help='Determines the amount of dollars that each player begins the game with in their bankroll. Default is $10000.')
 @click.option('-h', '--hands', default=1000, help='Determines the number of hands to deal. Default is 1000.')
 @click.option('-t', '--tablemin', default=10, help='Determines the minimum table bet. Default is $10.')
-@click.option('-p', '--penetration', default=0.84, help='Dictates the deck penetration by the dealer. Default is 0.84 which means that the dealer will penetrate 84 percent of the shoe before re-shuffling')
+@click.option('-p', '--penetration', default=0.84, help='Dictates the deck penetration by the dealer. Default is 0.84 which means that the dealer will penetrate 84 percent of the shoe before re-shuffling.')
 @click.option('-d', '--dealersettings', default="[17, True, True, True, True]", help='Assigns the dealer rules.')
 @click.option('-v', '--verbose', default=False, help='Prints all player, hand, and game information.')
 def main(shoesize, bankroll, hands, tablemin, penetration, dealersettings, verbose):
+
     print("Running blackjack simulation with variables:")
     print("Shoe size: ", shoesize, " | Bankroll: ", bankroll, " | Number of hands to simulate: ", hands, " | Minimum Table Bet: ", tablemin)
     houseRules = HouseRules(standValue=dealersettings[0], DASoffered=dealersettings[1], RSAoffered=dealersettings[2], LSoffered=dealersettings[3], doubleOnSoftTotal=dealersettings[4])
@@ -89,24 +91,35 @@ class BlackJackGame:
     def __init__(self, shoeSize, bankroll, hands, tableMin, penetration, houseRules):
         vprint("Initializing game...")
         self.shoeSize = shoeSize
+        self.bankroll = bankroll
         self.numHands = hands
+        self.tableMin = tableMin
+        self.penetration = penetration
+        self.houseRules = houseRules
         self.tableMin = tableMin
 
         vprint("Dealer has rules: ")
         vprint("Deck Penetration %: ", penetration, " | Minimum table bet: $", tableMin)
+
+        # Lazy imports for strategies to avoid circular import issues
+        from strategies import BasicStrategy, CasinoStrategy, RandomStrategy, MonteCarloStrategy
+
         self.dealer = Dealer(penetration, shoeSize, houseRules, CasinoStrategy(houseRules, isCounting=False, accuracy=1), isVerbose)
 
-        self.players = [Player("Counting with 1-6 Bet Spread", bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=1), spread1_6(), isVerbose),
-                        Player("Counting with 1-50 Bet Spread", bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=1), spread1_50(), isVerbose),
-                        Player('Counting with 1-6 Bet Spread, 50% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=0.50), spread1_6(), isVerbose),
-                        Player("Perfect Basic Strategy", bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
-                        Player('99% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.99), spread1_50(), isVerbose),
-                        Player('95% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.95), spread1_50(), isVerbose),
-                        Player('75% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.75), spread1_50(), isVerbose),
-                        Player('Casino Rules', bankroll, CasinoStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
-                        Player("Random", bankroll, RandomStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose)]
+        self.players = [
+            Player("Counting with 1-6 Bet Spread", bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=1), spread1_6(), isVerbose),
+            Player("Counting with 1-50 Bet Spread", bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=1), spread1_50(), isVerbose),
+            Player('Counting with 1-6 Bet Spread, 50% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=0.50), spread1_6(), isVerbose),
+            Player("Perfect Basic Strategy", bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
+            Player('99% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.99), spread1_50(), isVerbose),
+            Player('95% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.95), spread1_50(), isVerbose),
+            Player('75% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.75), spread1_50(), isVerbose),
+            Player('Casino Rules', bankroll, CasinoStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
+            Player("Random", bankroll, RandomStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
+            Player("Monte Carlo Agent", bankroll, MonteCarloStrategy(houseRules, iterations=1000), spread1_6(), isVerbose)
+        ]
+
         vprint("There are ", len(self.players), " players in the game.")
-    
     def clearAllCards(self, players: List[Player]):
         # Collect the cards from each player before moving onto the next round and put the cards in the
         # discard pile
@@ -319,6 +332,20 @@ class BlackJackGame:
                         self.doubleDown(player, hand, count)
                     
         vprint(player.name, " has played all of their hands!")
+    def terminal_test(self, state):
+        """
+        Determines if the game state is terminal (no further actions possible).
+        A game is terminal if:
+        - The number of hands played exceeds the specified number of hands.
+        - The player's bankroll is below the table minimum (bankrupt player).
+        """
+        # Example condition for terminal state
+        is_terminal = (
+            state.get("hands_played", 0) >= self.numHands or  # Check if all hands have been played
+            state.get("bankroll", self.bankroll) < self.tableMin  # Check if the player is bankrupt
+        )
+        return is_terminal
+      
     
     def printRoundInformation(self, players: List[Player], count: HiLoCount, roundNumber: int):
         print(" - - - - - - - - - - -")
@@ -329,7 +356,63 @@ class BlackJackGame:
         for player in players:
             prevIndex = len(player.bankrollSnapshots) - 2
             print(player.name, ' has a bankroll of $', player.bankroll, " (Prev hand: $", player.bankrollSnapshots[prevIndex], ")")
-    
+    def actions(self, state):
+        """
+        Returns the set of valid actions for the current game state.
+        """
+        valid_actions = set()
+
+        # Check if the player can hit (hand value < 21)
+        if state['player_hand'] < 21:
+            valid_actions.add("H")  # Hit
+
+        # Check if the player can stand
+        valid_actions.add("S")  # Stand
+
+        # Check if the player can double (some rules restrict doubling)
+        if len(state.get('player_cards', [])) == 2:  # Usually allowed only on the first two cards
+            valid_actions.add("D")  # Double
+
+        # Check if the player can split (requires two cards of the same rank)
+        if len(state.get('player_cards', [])) == 2 and state['player_cards'][0] == state['player_cards'][1]:
+            valid_actions.add("P")  # Split
+
+        return valid_actions
+    def result(self, state, action):
+        new_state = state.copy()  # Make a copy of the current state to simulate changes
+
+        if 'bet' not in new_state:
+            new_state['bet'] = self.tableMin  # Default to table minimum if not already set
+
+        if action == "H":  # Hit
+            new_card = self.dealer.dealCard()
+            new_state['player_cards'].append(new_card)
+            new_state['player_hand'] += new_card.getValue()
+
+        elif action == "S":  # Stand
+            new_state['is_player_done'] = True
+
+        elif action == "D":  # Double
+            new_state['bet'] *= 2
+            new_card = self.dealer.dealCard()
+            new_state['player_cards'].append(new_card)
+            new_state['player_hand'] += new_card.getValue()
+            new_state['is_player_done'] = True
+
+        elif action == "P":  # Split
+            if len(new_state['player_cards']) == 2 and new_state['player_cards'][0] == new_state['player_cards'][1]:
+                new_state['split_hands'] = [
+                    [new_state['player_cards'][0], self.dealer.dealCard()],
+                    [new_state['player_cards'][1], self.dealer.dealCard()],
+                ]
+                new_state['player_hand'] = None
+
+        if new_state['player_hand'] and new_state['player_hand'] > 21:
+            new_state['is_bust'] = True
+
+        return new_state
+
+
     def startGame(self):
         self.dealer.shuffle()
         vprint("Starting new blackjack game!")
