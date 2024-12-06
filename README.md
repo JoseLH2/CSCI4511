@@ -92,3 +92,8 @@ To add a new bet-spread, add a new spread class within the `bet.py` file and ext
 ### Chart Sampling Appropiate Hit or Stand Values
 
 https://www.reddit.com/r/dankmemer/comments/mllo6s/ultimate_blackjack_strategy_chart/
+
+1. montecarlo functionality ie run and print with the open source libraries
+2. write like 5 page paper about findings
+3.
+last-step. experiment with testing
