@@ -177,3 +177,50 @@ class BasicStrategy(StrategyInterface):
     def willTakeInsurance(self, runningCount):
         # Perfect basic strategy never takes insurance unless running count is exceptionally high
         return runningCount >= 8
+class MCTSNode:
+    def __init__(self, state):
+        self.state = state
+        self.visits = 0
+        self.value = 0
+        self.children = {}
+
+    def ucb(self, total_visits):
+        if self.visits == 0:
+            return float('inf')
+        return self.value / self.visits + 2 * ((total_visits ** 0.5) / (1 + self.visits))
+
+
+class MCTSStrategy(StrategyInterface):
+    def __init__(self, houseRules: HouseRules, iterations: int):
+        self.houseRules = houseRules
+        self.iterations = iterations
+        self.isCounting = False  # Ensures compatibility with Player class
+        self.name = "Monte Carlo Tree Search"
+
+    def hardTotalOptimalDecision(self, hand: Hand, dealerUpcard: int, numSoftAces: int):
+        handValue = hand.getHandValue() - numSoftAces * 10
+        if handValue < 12:
+            return GameActions.HIT.value
+        elif 12 <= handValue < 17:
+            return random.choice([GameActions.HIT.value, GameActions.STAND.value])
+        else:
+            return GameActions.STAND.value
+
+    def shouldSplitPair(self, pairValue: int, dealerUpcard: int) -> bool:
+        # MCTS does not involve pair splitting logic
+        return False
+
+    def softTotalOptimalDecision(self, hand: Hand, dealerUpcard: int, softTotalDeductionCount: int) -> GameActions:
+        return self.hardTotalOptimalDecision(hand, dealerUpcard, softTotalDeductionCount)
+
+    def willTakeInsurance(self, runningCount) -> bool:
+        # MCTS does not take insurance
+        return False
+
+    def monteCarloSimulate(self, state):
+        # Placeholder logic for simulation
+        return random.choice([-1, 1])  # Random win/loss simulation
+
+    def monteCarloTreeSearch(self, state, game, N=1000):
+        # Placeholder logic for MCTS
+        return random.choice([GameActions.HIT.value, GameActions.STAND.value])

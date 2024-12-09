@@ -5,7 +5,7 @@ from count import HiLoCount
 from hand import Hand
 from card import Card, CardValue
 from dealer import Dealer, HouseRules
-from strategies import BasicStrategy, CasinoStrategy, RandomStrategy, GameActions
+from strategies import BasicStrategy, CasinoStrategy, RandomStrategy, GameActions, MCTSStrategy
 from bet import spread1_50, spread1_6
 from typing import List
 from collections import deque
@@ -64,9 +64,19 @@ class GameData:
             diff = endBankroll - initialBankroll
             earningsPerHand = diff / handsPlayed
             percentChange = (endBankroll - initialBankroll) / initialBankroll * 100
-            print(player.name, " | Win %", winRate, " | Lose %", loseRate, " | Draw %", drawRate)
-            print("Earnings: ", diff, '(Percent Increase %', percentChange, ") | Average payout per hand: $", earningsPerHand)
-    
+
+            print(f"{player.name} | Win %: {winRate:.2f} | Lose %: {loseRate:.2f} | Draw %: {drawRate:.2f}")
+            print(f"Earnings: ${diff:.2f} (Percent Increase: {percentChange:.2f}%) | Average payout per hand: ${earningsPerHand:.2f}")
+
+            # Highlight MCTS results
+            if player.name == "Monte Carlo Tree Search":
+                print("\n--- MCTS Strategy Performance ---")
+                print(f"Final Bankroll: ${player.bankroll}")
+                print(f"Total Hands Played: {handsPlayed}")
+                print(f"Win Rate: {winRate:.2f}%")
+                print(f"Average Earnings Per Hand: ${earningsPerHand:.2f}")
+                print("---------------------------------\n")
+
     def plotBankrollTime(self):
         numHands = self.game.numHands
         playerNames = []
@@ -96,15 +106,18 @@ class BlackJackGame:
         vprint("Deck Penetration %: ", penetration, " | Minimum table bet: $", tableMin)
         self.dealer = Dealer(penetration, shoeSize, houseRules, CasinoStrategy(houseRules, isCounting=False, accuracy=1), isVerbose)
 
-        self.players = [Player("Counting with 1-6 Bet Spread", bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=1), spread1_6(), isVerbose),
-                        Player("Counting with 1-50 Bet Spread", bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=1), spread1_50(), isVerbose),
-                        Player('Counting with 1-6 Bet Spread, 50% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=0.50), spread1_6(), isVerbose),
-                        Player("Perfect Basic Strategy", bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
-                        Player('99% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.99), spread1_50(), isVerbose),
-                        Player('95% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.95), spread1_50(), isVerbose),
-                        Player('75% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.75), spread1_50(), isVerbose),
-                        Player('Casino Rules', bankroll, CasinoStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
-                        Player("Random", bankroll, RandomStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose)]
+        self.players = [
+            Player("Counting with 1-6 Bet Spread", bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=1), spread1_6(), isVerbose),
+            Player("Counting with 1-50 Bet Spread", bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=1), spread1_50(), isVerbose),
+            Player('Counting with 1-6 Bet Spread, 50% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=True, accuracy=0.50), spread1_6(), isVerbose),
+            Player("Perfect Basic Strategy", bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
+            Player('99% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.99), spread1_50(), isVerbose),
+            Player('95% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.95), spread1_50(), isVerbose),
+            Player('75% Accurate Basic Strategy', bankroll, BasicStrategy(houseRules, isCounting=False, accuracy=0.75), spread1_50(), isVerbose),
+            Player('Casino Rules', bankroll, CasinoStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
+            Player("Random", bankroll, RandomStrategy(houseRules, isCounting=False, accuracy=1), spread1_6(), isVerbose),
+            Player("Monte Carlo Tree Search", bankroll, MCTSStrategy(houseRules, iterations=1000), spread1_6(), isVerbose)
+        ]
         vprint("There are ", len(self.players), " players in the game.")
     
     def clearAllCards(self, players: List[Player]):
